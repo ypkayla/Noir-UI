@@ -2,6 +2,7 @@ local Players      = game:GetService("Players")
 local UIS          = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService  = game:GetService("HttpService")
+local RunService   = game:GetService("RunService")
 
 local Player = Players.LocalPlayer
 
@@ -17,8 +18,15 @@ local function new(class, props, children)
 end
 
 local function corner(r) return new("UICorner", {CornerRadius = UDim.new(0, r)}) end
-local function stroke(c, t, tr) return new("UIStroke", {Color = c or Color3.new(1,1,1), Thickness = t or 1, Transparency = tr or 0}) end
-local function pad(n) return new("UIPadding", {PaddingTop = UDim.new(0, n), PaddingBottom = UDim.new(0, n), PaddingLeft = UDim.new(0, n), PaddingRight = UDim.new(0, n)}) end
+local function stroke(c, t, tr)
+    return new("UIStroke", {Color = c or Color3.new(1,1,1), Thickness = t or 1, Transparency = tr or 0})
+end
+local function pad(n)
+    return new("UIPadding", {
+        PaddingTop = UDim.new(0, n), PaddingBottom = UDim.new(0, n),
+        PaddingLeft = UDim.new(0, n), PaddingRight = UDim.new(0, n),
+    })
+end
 local function vlist(gap, order)
     return new("UIListLayout", {
         Padding = UDim.new(0, gap or 6),
@@ -61,7 +69,8 @@ Library.OnUnloadCallbacks = {}
 Library.Open              = false
 Library.Minimized         = false
 Library.Unloaded          = false
-Library.Version           = "1.0"
+Library.Window            = nil
+Library.Version           = "noir-1.0"
 
 function Library:GetTheme() return Theme end
 
@@ -71,7 +80,7 @@ function Library:RegisterFlag(flag, getter, setter, default)
 end
 
 local ScreenGui = new("ScreenGui", {
-    Name           = "NoirUI",
+    Name           = "NOIR",
     ResetOnSpawn   = false,
     IgnoreGuiInset = true,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
@@ -199,8 +208,8 @@ function Library:KeySystem(cfg)
         Parent = root,
     }, {corner(12), stroke(Theme.Outline, 1, 0.35)})
 
-    new("Frame", {
-        Name = "Logo",
+    local logoFrame = new("Frame", {
+        Name = "LogoFrame",
         Size = UDim2.fromOffset(52, 52),
         Position = UDim2.new(0, 24, 0, 24),
         BackgroundColor3 = Theme.Accent,
@@ -210,6 +219,7 @@ function Library:KeySystem(cfg)
     }, {corner(12)})
 
     new("TextLabel", {
+        Name = "Title",
         Position = UDim2.new(0, 90, 0, 28),
         Size = UDim2.new(1, -114, 0, 22),
         BackgroundTransparency = 1,
@@ -223,6 +233,7 @@ function Library:KeySystem(cfg)
     })
 
     new("TextLabel", {
+        Name = "Subtitle",
         Position = UDim2.new(0, 90, 0, 50),
         Size = UDim2.new(1, -114, 0, 18),
         BackgroundTransparency = 1,
@@ -236,6 +247,7 @@ function Library:KeySystem(cfg)
     })
 
     local box = new("Frame", {
+        Name = "InputBox",
         Position = UDim2.new(0, 24, 0, 100),
         Size = UDim2.new(1, -48, 0, 40),
         BackgroundColor3 = Theme.Element,
@@ -261,6 +273,7 @@ function Library:KeySystem(cfg)
     })
 
     local submit = new("TextButton", {
+        Name = "Submit",
         Position = UDim2.new(0, 24, 0, 152),
         Size = UDim2.new(1, -48, 0, 36),
         BackgroundColor3 = Theme.Accent,
@@ -283,6 +296,7 @@ function Library:KeySystem(cfg)
     submitLabel:SetAttribute("NoTheme", true)
 
     local link = new("TextButton", {
+        Name = "Link",
         Position = UDim2.new(0, 24, 0, 196),
         Size = UDim2.new(1, -48, 0, 28),
         BackgroundTransparency = 1,
@@ -295,6 +309,7 @@ function Library:KeySystem(cfg)
     })
 
     local status = new("TextLabel", {
+        Name = "Status",
         Position = UDim2.new(0, 24, 1, -46),
         Size = UDim2.new(1, -48, 0, 18),
         BackgroundTransparency = 1,
@@ -362,6 +377,9 @@ function Library:SetOpen(open)
     if self.Window and self.Window.Frame then
         self.Window.Frame.Visible = self.Open and not self.Minimized
     end
+    if self.MinimizedBubble then
+        self.MinimizedBubble.Visible = not self.Open and self.Minimized
+    end
     if self.MobileToggle then
         self.MobileToggle.Visible = not self.Open and not self.Minimized
     end
@@ -376,11 +394,14 @@ function Library:SetMinimized(value)
     if self.MinimizedBubble then
         self.MinimizedBubble.Visible = value
     end
+    if self.MobileToggle then
+        self.MobileToggle.Visible = not self.Open and not value
+    end
 end
 
 function Library:CreateWindow(cfg)
     cfg = cfg or {}
-    local title    = cfg.Title    or "Noir"
+    local title    = cfg.Title    or "NOIR"
     local subtitle = cfg.Subtitle or ""
 
     if self.Window then return self.Window end
@@ -444,6 +465,7 @@ function Library:CreateWindow(cfg)
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = brand,
     })
+
     new("TextLabel", {
         Name = "Subtitle",
         Position = UDim2.fromOffset(64, 30),
@@ -466,31 +488,27 @@ function Library:CreateWindow(cfg)
         Parent = topBar,
     })
 
-    local function makeTopButton(name, xOffset)
-        local b = new("TextButton", {
-            Name = name,
-            Position = UDim2.new(0, xOffset, 0.5, 0),
-            AnchorPoint = Vector2.new(0, 0.5),
-            Size = UDim2.fromOffset(30, 30),
-            BackgroundColor3 = Theme.Element,
-            AutoButtonColor = false,
-            Text = "",
-            Parent = controls,
-        }, {corner(8)})
-        new("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromScale(0.5, 0.5),
-            Size = UDim2.fromOffset(12, 2),
-            BackgroundColor3 = Theme.Muted,
-            BorderSizePixel = 0,
-            Parent = b,
-        }, {corner(1)})
-        return b
-    end
+    local minimizeBtn = new("TextButton", {
+        Name = "MinimizeButton",
+        Position = UDim2.new(0, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        Size = UDim2.fromOffset(30, 30),
+        BackgroundColor3 = Theme.Element,
+        AutoButtonColor = false,
+        Text = "",
+        Parent = controls,
+    }, {corner(8)})
+    new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(12, 2),
+        BackgroundColor3 = Theme.Muted,
+        BorderSizePixel = 0,
+        Parent = minimizeBtn,
+    }, {corner(1)})
 
-    local minimizeBtn = makeTopButton("Minimize", 0)
     local closeBtn = new("TextButton", {
-        Name = "Close",
+        Name = "CloseButton",
         Position = UDim2.new(0, 40, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         Size = UDim2.fromOffset(30, 30),
@@ -558,7 +576,7 @@ function Library:CreateWindow(cfg)
         Visible = false,
         Parent = ScreenGui,
     }, {corner(16), stroke(Theme.Outline, 1, 0.4)})
-    Library.MinimizedBubble = bubble
+    self.MinimizedBubble = bubble
 
     local mobile = new("TextButton", {
         Name = "MobileToggle",
@@ -571,12 +589,21 @@ function Library:CreateWindow(cfg)
         Visible = false,
         Parent = ScreenGui,
     }, {corner(16), stroke(Theme.Outline, 1, 0.4)})
-    Library.MobileToggle = mobile
+    self.MobileToggle = mobile
 
-    bubble.Activated:Connect(function() Library:SetMinimized(false); Library:SetOpen(true) end)
-    mobile.Activated:Connect(function() Library:SetOpen(true) end)
-    minimizeBtn.Activated:Connect(function() Library:SetMinimized(not Library.Minimized) end)
-    closeBtn.Activated:Connect(function() Library:SetOpen(not Library.Open) end)
+    bubble.Activated:Connect(function()
+        Library:SetMinimized(false)
+        Library:SetOpen(true)
+    end)
+    mobile.Activated:Connect(function()
+        Library:SetOpen(true)
+    end)
+    minimizeBtn.Activated:Connect(function()
+        Library:SetMinimized(not Library.Minimized)
+    end)
+    closeBtn.Activated:Connect(function()
+        Library:SetOpen(not Library.Open)
+    end)
 
     function Window:Tab(tabCfg)
         tabCfg = tabCfg or {}
@@ -624,6 +651,7 @@ function Library:CreateWindow(cfg)
         Tab.Button = button
 
         local label = new("TextLabel", {
+            Name = "Label",
             Position = UDim2.fromOffset(12, 0),
             Size = UDim2.new(1, -20, 1, 0),
             BackgroundTransparency = 1,
@@ -675,6 +703,7 @@ function Library:CreateWindow(cfg)
 
     Library.Window = Window
     Library.Open = true
+    Library.Minimized = false
     main.Visible = true
 
     return Window
@@ -772,7 +801,7 @@ function SectionMethods:Toggle(cfg)
         if self._sub then self._sub.Container.Visible = v end
         if not silent and type(cfg.Callback) == "function" then
             local ok, err = pcall(cfg.Callback, v)
-            if not ok then warn("[NoirUI] Toggle callback error: " .. tostring(err)) end
+            if not ok then warn("[NOIR] Toggle callback error: " .. tostring(err)) end
         end
     end
 
@@ -827,6 +856,7 @@ function SectionMethods:Slider(cfg)
     })
 
     local valueLabel = new("TextLabel", {
+        Name = "Value",
         Position = UDim2.new(1, -60, 0, 6),
         Size = UDim2.fromOffset(50, 16),
         BackgroundTransparency = 1,
@@ -885,7 +915,7 @@ function SectionMethods:Slider(cfg)
 
         if fire and type(cfg.Callback) == "function" then
             local ok, err = pcall(cfg.Callback, v)
-            if not ok then warn("[NoirUI] Slider callback error: " .. tostring(err)) end
+            if not ok then warn("[NOIR] Slider callback error: " .. tostring(err)) end
         end
     end
 
@@ -956,6 +986,7 @@ function SectionMethods:Dropdown(cfg)
     })
 
     local valueLabel = new("TextLabel", {
+        Name = "Value",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -30, 0.5, 0),
         Size = UDim2.new(0.5, 0, 1, 0),
@@ -970,6 +1001,7 @@ function SectionMethods:Dropdown(cfg)
     })
 
     local arrow = new("TextLabel", {
+        Name = "Arrow",
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -10, 0.5, 0),
         Size = UDim2.fromOffset(14, 14),
@@ -1060,7 +1092,7 @@ function SectionMethods:Dropdown(cfg)
         paintSelection()
         if not silent and type(cfg.Callback) == "function" then
             local ok, err = pcall(cfg.Callback, v)
-            if not ok then warn("[NoirUI] Dropdown callback error: " .. tostring(err)) end
+            if not ok then warn("[NOIR] Dropdown callback error: " .. tostring(err)) end
         end
     end
 
@@ -1140,7 +1172,7 @@ local fs = {
     list   = type(listfiles)  == "function" and listfiles  or nil,
     delete = type(delfile)    == "function" and delfile    or nil,
 }
-local FOLDER = "NoirUI"
+local FOLDER = "NOIR"
 local memoryStore = {}
 
 local function ensureFolder()
@@ -1172,30 +1204,6 @@ local function restore(data)
         local entry = Library.Flags[flag]
         if entry then pcall(entry.set, v) end
     end
-end
-
-local function listConfigs(scope)
-    local out = {}
-    if fs.list and fs.isdir then
-        local ok, files = pcall(fs.list, FOLDER)
-        if ok and type(files) == "table" then
-            for _, path in ipairs(files) do
-                if not fs.isdir or not fs.isdir(path) then
-                    local name = tostring(path):match("([^/\\]+)%.json$")
-                    if name and name:sub(1, #scope + 1) == scope .. "_" then
-                        table.insert(out, name:sub(#scope + 2))
-                    end
-                end
-            end
-        end
-    else
-        for name in pairs(memoryStore) do
-            if name:sub(1, #scope + 1) == scope .. "_" then
-                table.insert(out, name:sub(#scope + 2))
-            end
-        end
-    end
-    return out
 end
 
 function Library:AddConfigSections(tab, cfg)
@@ -1325,7 +1333,7 @@ function Library:Unload()
 
     for _, fn in ipairs(self.OnUnloadCallbacks) do
         local ok, err = pcall(fn)
-        if not ok then warn("[NoirUI] Unload callback error: " .. tostring(err)) end
+        if not ok then warn("[NOIR] Unload callback error: " .. tostring(err)) end
     end
     table.clear(self.OnUnloadCallbacks)
 
